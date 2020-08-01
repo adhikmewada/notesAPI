@@ -1,7 +1,5 @@
 Requirements:
-1. MongoDB running at URL = mongodb://127.0.0.1:27017/
-2. DB name = notesManager
-3. DB collection names = users, notes
+MongoDB running at URL = mongodb://127.0.0.1:27017/
 
 To initialise node_modules in the cloned directory run,
 
