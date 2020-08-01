@@ -33,7 +33,7 @@ var ids = {
 }
 
 // Globals
-var dbName = 'workIndiaNotes';
+var dbName = 'notesManager';
 var mongoUrl = 'mongodb://127.0.0.1:27017/' + dbName;
 var serverId = 'SERVER';
 var encryption_key = '';
