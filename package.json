@@ -11,6 +11,7 @@
   "dependencies": {
     "crypto": "^1.0.1",
     "express": "^4.17.1",
-    "mongodb": "^3.6.0"
+    "mongodb": "^3.6.0",
+    "mysql": "^2.18.1"
   }
 }

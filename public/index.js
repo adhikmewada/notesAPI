@@ -5,19 +5,19 @@ var paths = {
     saveNote: '/app/sites'			//POST:
 };
 
-$.ajax({
-    url: paths.register,
-    data: JSON.stringify({ username : "user1", password : "password"}),
-    dataType: 'json',
-    type: 'POST',
-    contentType: 'application/json',
-    success: response => console.log(response),
-    error: e => console.log(e)
-});
+// $.ajax({
+//     url: paths.register,
+//     data: JSON.stringify({ username : "user3", password : "password"}),
+//     dataType: 'json',
+//     type: 'POST',
+//     contentType: 'application/json',
+//     success: response => console.log(response),
+//     error: e => console.log(e)
+// });
 
 
 var user = {
-	username : "user1",
+	username : "user3",
 	password : "password"
 }
 
@@ -29,6 +29,7 @@ $.ajax({
     type: 'POST',
     contentType: 'application/json',
     success: response1 => {
+    	console.log(response1);
     	$.ajax({
 		    url: paths.saveNote + "?user=" + response1.userId,
 			data: JSON.stringify({

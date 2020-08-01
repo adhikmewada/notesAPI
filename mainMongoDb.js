@@ -1,11 +1,8 @@
 var Express = require('express');
 var BodyParser = require('body-parser');
-var mysql = require('mysql');
-
-
+var MongoClient = require('mongodb').MongoClient;
 // var Cors = require('cors');
 var Utils = require('./utils');
-var sql = require('./sql');
 var Encryption = require('./encryption');
 // var session = require('express-session');
 
@@ -40,14 +37,28 @@ var dbName = 'notesManager';
 var mongoUrl = 'mongodb://127.0.0.1:27017/' + dbName;
 var serverId = 'SERVER';
 var encryption_key = '';
-var dbMain = sql.init();
+var dbMain;
 var activeUsers = {};
 var app = Express();
-
 
 app.use(BodyParser.json());
 app.use(BodyParser.urlencoded({ extended: false }));
 
+MongoClient.connect(mongoUrl, { useUnifiedTopology: true }, function(err, db) {
+    Utils.assertError(err, serverId, 'connecting to mongodb at address: ' + mongoUrl);
+
+    dbMain = db.db(dbName)
+    Utils.log(serverId, 'Database connected');
+
+    // dbMain.createCollection(dbCollections.users, function(err, res) {
+    //     Utils.assertError(err, serverId, 'creating users collection')
+    //     Utils.log(serverId, 'Users collection checked');
+    // });
+    // dbMain.createCollection(dbCollections.notes, function(err, res) {
+    //     Utils.assertError(err, serverId, 'creating notes collection')
+    //     Utils.log(serverId, 'Notes collection checked');
+    // });
+});
 
 app.post(paths.register, function(req, res) {
     var username = req.body.username;
@@ -59,29 +70,40 @@ app.post(paths.register, function(req, res) {
     	username : username
     };
 
-    var data = 
-    {
-  		username : username,
-  		password : Encryption.encrypt(password)
-    };
+    var data = [
+	    {
+	  		username : username,
+	  		password : Encryption.encrypt(password)
+	    }
+    ];
 
-    var sql = "INSERT INTO users (username, password) VALUES ('" + data.username + "', '" + data.password +"')";
     
-    dbMain.query(sql, function (err, result) {
-        Utils.assertError(err, ids.register, 'registering user');
+    dbMain.collection(dbCollections.users).findOne(query, function(err, result) {
+        Utils.assertError(err, ids.register, 'finding user at register path');
 
-        if (!err) {
-            Utils.log(username, 'Account created');
-            res.status(responses.ok).json({ 
-                status : "account created"
-            });
+        if (!err && !result) {
+			dbMain.collection(dbCollections.users).insertMany(data, function(err, resultInsert) {
+                Utils.assertError(err, ids.register, 'registering user');
+
+                if (!err && resultInsert.result.n > 0) {
+                    Utils.log(username, 'Account created');
+		            res.status(responses.ok).json({ 
+		            	status : "account created"
+		            });
+                } else {
+		            Utils.log(username, 'Register failed');
+		            res.status(responses.notOk).json({ 
+		            	status : "account registration failed"
+		            });
+                }
+            });            
         } else {
-            Utils.log(username, 'Register failed');
+            Utils.log(username, 'username exists');
             res.status(responses.notOk).json({ 
-                status : "account registration failed"
+            	status : "username exists"
             });
         }
-    });           
+    });	
 
 });
 
@@ -107,27 +129,27 @@ app.post(paths.login, function(req, res) {
     	return;
     }
 
-    var sql =  "SELECT * FROM users WHERE username = '" + username + "';";
-    // var sql =  "SELECT * FROM users";
-    dbMain.query(sql, function (err, result) {
-        if (err) throw err;
 
-        if (!err && result && Encryption.decrypt(result[0].password) === password) {
+	dbMain.collection(dbCollections.users).findOne(query, function(err, result) {
+        Utils.assertError(err, ids.login, 'finding user at login path');
+
+
+	  	if (!err && result && Encryption.decrypt(result.password) === password) {
             id = Utils.getUserId();
             activeUsers[username] = id;
 
             Utils.log(username, 'login success');
             res.status(responses.ok).json({ 
-             status : "success",
-             userId : id
+            	status : "success",
+            	userId : id
             });
         } else {
             Utils.log(username, 'Invalid details');
             res.status(responses.notOk).json({ 
-             status : "Invalid account details"
+            	status : "Invalid account details"
             });
         }
-    });
+    });	
 
 });
 
@@ -166,15 +188,12 @@ app.get(paths.getNotes, function(req, res) {
     	username : username
     };
 
-    var sql =  "SELECT * FROM notes WHERE username = '" + username + "';";
-    dbMain.query(sql, function (err, result) {
-        if (err) throw err;
-
+	dbMain.collection(dbCollections.notes).find(query).toArray(function(err, result) {
         var notes = [];
 
         Utils.assertError(err, ids.getNotes, 'finding user in notes');
 
-        if (!err && result) {
+	  	if (!err && result) {
             id = Utils.getUserId();
             activeUsers[username] = id;
 
@@ -183,20 +202,20 @@ app.get(paths.getNotes, function(req, res) {
 
             for(note in result)
             {
-                if(result.hasOwnProperty(note))
-                {
-                    notes.push( Encryption.decrypt(result[note].note) );
-                }
+            	if(result.hasOwnProperty(note))
+            	{
+            		notes.push( Encryption.decrypt(result[note].note) );
+            	}
             }
 
             res.status(responses.ok).json(notes);
         } else {
             Utils.log(username, 'Unable to find notes');
             res.status(responses.notOk).json({ 
-                status : "Unable to find notes"
+            	status : "Unable to find notes"
             });
         }
-    });
+    });	
 
 });
 
@@ -237,23 +256,21 @@ app.post(paths.saveNote, function(req, res) {
     	note : Encryption.encrypt(note)
     };
 
-    var sql = "INSERT INTO notes (username, note) VALUES ('" + data.username + "', '" + data.note +"')";
-    
-    dbMain.query(sql, function (err, result) {
+	dbMain.collection(dbCollections.notes).insertOne(data, function(err) {
         Utils.assertError(err, ids.saveNote, 'inserting note');
 
-        if (!err) {
-            Utils.log(username, 'Save note success');
+	  	if (!err) {
+	  		Utils.log(username, 'Save note success');
             res.status(responses.ok).json({
-                status : "success"
+            	status : "success"
             });
         } else {
             Utils.log(username, 'Unable to save note');
             res.status(responses.notOk).json({ 
-                status : "Unable to save note"
+            	status : "Unable to save note"
             });
         }
-    });
+    });	
 
 });
 
